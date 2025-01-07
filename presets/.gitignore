@@ -1,7 +1,2 @@
 *.taml
 !default.taml
-
-*.nim
-run.sh
-wrapper
-wrapper.seaflnk

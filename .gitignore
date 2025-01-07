@@ -1,0 +1,9 @@
+*
+!*.*
+!*/
+### Above combination will ignore all files without extension ###
+
+*.nim
+run.sh
+wrapper
+wrapper.seaflnk

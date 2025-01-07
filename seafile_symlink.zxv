@@ -39,7 +39,7 @@
 #================================================================
 # Initialization
 #================================================================
-import std/os, std/strformat, std/dirs, std/strutils, yanyl
+import std/strformat, std/os, std/strutils, yanyl
 
 type config_template = object  #:
 	library_path: string
@@ -50,12 +50,10 @@ derive_yaml config_template
 # get the current directory
 var cwd = get_current_dir()
 # Change path to where the current script is located, We will need this for resolving relative paths to config files
-set_current_dir(get_app_dir())
+let app_dir = get_app_dir()
+app_dir.set_current_dir()
 # Create presets folder (does nothing if it already exists)
-create_dir 'presets' 
-# change path to the presets folder
-set_current_dir('presets')
-
+create_dir 'presets'
 
 
 #================================================================
@@ -68,16 +66,15 @@ if presets.len == 0:
 	quit 'Usage: ./seafile_symlink [prefixname]', 1;
 
 
-var preset = ''
+var preset: string
 # loop though each preset given
 for p in presets:
 	# if preset doesnt end with .taml, look relative to presets folder
-	if not p.ends_with('.taml'):
-		preset = p & '.taml';
+	if not p.ends_with '.taml':
+		preset = p.addFileExt('.taml').absolute_path(app_dir / 'presets');
 	# else look relative to the current directory
 	else:
-		set_current_dir(cwd)
-		preset = p;
+		preset = p.absolute_path(cwd);
 
 	# Ensure the specified config exists
 	if not file_exists(preset):
@@ -95,8 +92,6 @@ for p in presets:
 	if not config.placeholder_ext.starts_with('.'):
 		config.placeholder_ext = '.' & config.placeholder_ext
 	
-	echo config.placeholder_ext
-
 	# Output some config feedback to user
 	echo &'Processing library_path: {config.library_path.absolute_path}'
 	echo &'Using storage_method: {config.storage_method.absolute_path}'
