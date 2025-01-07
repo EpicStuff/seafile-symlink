@@ -1,0 +1,6 @@
+# Avoid modifying this file directly as it may be overwritten by source control
+# Create copies of it in this dir, sans comments, e.g. named after your library
+# See README.md for info on how to get the scripts to read your custom configs
+library_path: ..\ # Absolute or relative to seafile-symlink
+storage_method: placeholder # Either 'database' or 'placeholder'
+placeholder_ext: seaflnk # Only applies if using placeholders

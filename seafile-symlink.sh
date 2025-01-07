@@ -27,9 +27,9 @@
 #================================================================
 #- IMPLEMENTATION
 #-    version         1.0
-#-    author          Illya Moskvin <ivmoskvin@gmail.com>
+#-    author          Illya Moskvin <ivmoskvin@gmail.com>, EpicStuff
 #-    created         2018-07-08
-#-    license         MIT
+#-    license         GNU JUSTIFIED
 #================================================================
 # END_OF_HEADER
 #================================================================

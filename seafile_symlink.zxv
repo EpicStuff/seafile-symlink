@@ -1,0 +1,102 @@
+#================================================================
+# HEADER
+#================================================================
+#% USAGE
+#+    ${SCRIPT_NAME} [preset]
+#%
+#% SYNOPSIS
+#%    Saves symlinks to a syncable format and restores them therefrom.
+#%
+#% DESCRIPTION
+#%    Has the ability to save symlink date via placeholder files, or via
+#%    `seafile-symlink.txt` in library root. Create custom taml files in
+#%    the `preset` directory. Tell the script which taml file to use via
+#%    the `preset` param.
+#%
+#%    Meant to address https://github.com/haiwen/seafile/issues/288
+#%
+#% OPTIONS
+#%    [preset]      Specifies which taml config file to use
+#%
+#% EXAMPLES
+#%    ${SCRIPT_NAME} default              # loads ./presets/default.ini
+#%    ${SCRIPT_NAME} default.taml         # loads ${pwd}/default.ini
+#%    ${SCRIPT_NAME} ~/foo/default.taml   # accepts absolute paths
+#%    ${SCRIPT_NAME} library1 library2    # multiple presets at once
+#%
+#================================================================
+#- IMPLEMENTATION
+#-    version         1.0
+#-    author          Illya Moskvin <ivmoskvin@gmail.com>, EpicStuff
+#-    created         2018-07-08
+#-    license         GNU JUSTIFIED
+#================================================================
+# END_OF_HEADER
+#================================================================
+
+
+
+#================================================================
+# Initialization
+#================================================================
+import std/os, std/strformat, std/dirs, std/strutils, yanyl
+
+type config_template = object  #:
+	library_path: string
+	storage_method: string
+	placeholder_ext: string;
+derive_yaml config_template
+
+# get the current directory
+var cwd = get_current_dir()
+# Change path to where the current script is located, We will need this for resolving relative paths to config files
+set_current_dir(get_app_dir())
+# Create presets folder (does nothing if it already exists)
+create_dir 'presets' 
+# change path to the presets folder
+set_current_dir('presets')
+
+
+
+#================================================================
+# Config loading and validation
+#================================================================
+# Load the preset name from the argument
+let presets = command_line_params()
+# Ensure a preset name was passed
+if presets.len == 0:
+	quit 'Usage: ./seafile_symlink [prefixname]', 1;
+
+
+var preset = ''
+# loop though each preset given
+for p in presets:
+	# if preset doesnt end with .taml, look relative to presets folder
+	if not p.ends_with('.taml'):
+		preset = p & '.taml';
+	# else look relative to the current directory
+	else:
+		set_current_dir(cwd)
+		preset = p;
+
+	# Ensure the specified config exists
+	if not file_exists(preset):
+		quit &'Config not found: {preset.absolute_path}', 1;
+	# load config for preset
+	var config = of_yaml_str(read_file(preset), config_template)
+
+	# Ensure that LibraryPath exists
+	if not dir_exists(config.library_path):
+		quit &'Cannot resolve LibraryPath to a directory: {config.library_path}', 1;
+	# Ensure the storage method is valid
+	if config.storage_method != 'placeholder' and config.storage_method != 'database':
+		quit &'Invalid storage_method: {config.storage_method}', 1;
+	# Ensure PlaceholderExt starts with a period
+	if not config.placeholder_ext.starts_with('.'):
+		config.placeholder_ext = '.' & config.placeholder_ext
+	
+	echo config.placeholder_ext
+
+	# Output some config feedback to user
+	echo &'Processing library_path: {config.library_path.absolute_path}'
+	echo &'Using storage_method: {config.storage_method.absolute_path}'

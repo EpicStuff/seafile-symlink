@@ -1,2 +1,7 @@
-*.ini
-!default.ini
+*.taml
+!default.taml
+
+*.nim
+run.sh
+wrapper
+wrapper.seaflnk
