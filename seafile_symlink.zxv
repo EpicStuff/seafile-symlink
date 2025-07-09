@@ -2,10 +2,10 @@
 # HEADER
 #================================================================
 #% USAGE
-#+    ${SCRIPT_NAME} [preset]
+#+    ${SCRIPT_NAME} [preset ...] 
 #%
 #% SYNOPSIS
-#%    Saves symlinks to a syncable format and restores them therefrom.
+#%    Saves symlinks to a syncable format and restores them from there.
 #%
 #% DESCRIPTION
 #%    Has the ability to save symlink date via placeholder files, or via
@@ -16,11 +16,11 @@
 #%    Meant to address https://github.com/haiwen/seafile/issues/288
 #%
 #% OPTIONS
-#%    [preset]      Specifies which taml config file to use
+#%    [preset ...]      Specifies which one or more taml config file to use
 #%
 #% EXAMPLES
-#%    ${SCRIPT_NAME} default              # loads ./presets/default.ini
-#%    ${SCRIPT_NAME} default.taml         # loads ${pwd}/default.ini
+#%    ${SCRIPT_NAME} default              # loads ./presets/default.taml
+#%    ${SCRIPT_NAME} default.taml         # loads ${pwd}/default.taml
 #%    ${SCRIPT_NAME} ~/foo/default.taml   # accepts absolute paths
 #%    ${SCRIPT_NAME} library1 library2    # multiple presets at once
 #%
@@ -28,7 +28,7 @@
 #- IMPLEMENTATION
 #-    version         1.0
 #-    author          Illya Moskvin <ivmoskvin@gmail.com>, EpicStuff
-#-    created         2018-07-08
+#-    created         2025-02-18
 #-    license         GNU JUSTIFIED
 #================================================================
 # END_OF_HEADER
@@ -54,6 +54,7 @@ let app_dir = get_app_dir()
 app_dir.set_current_dir()
 # Create presets folder (does nothing if it already exists)
 create_dir 'presets'
+
 
 
 #================================================================
@@ -90,8 +91,16 @@ for p in presets:
 		quit &'Invalid storage_method: {config.storage_method}', 1;
 	# Ensure PlaceholderExt starts with a period
 	if not config.placeholder_ext.starts_with('.'):
-		config.placeholder_ext = '.' & config.placeholder_ext
+		config.placeholder_ext = '.' & config.placeholder_ext;
 	
 	# Output some config feedback to user
 	echo &'Processing library_path: {config.library_path.absolute_path}'
 	echo &'Using storage_method: {config.storage_method.absolute_path}'
+
+
+
+#================================================================
+# Data gathering
+#================================================================
+	# Enter the LibraryPath. We'll be resolving all paths from here onward.
+	config.library_path.set_current_dir()
