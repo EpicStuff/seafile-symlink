@@ -128,7 +128,7 @@ for p in presets:
 	
 	# Output some config feedback to user
 	echo &'Processing library_path: {config.library_path.absolute_path}'
-	echo &'Using storage_method: {config.storage_method.absolute_path}'
+	echo &'Using storage_method: {config.storage_method}'
 
 
 
@@ -184,7 +184,7 @@ for p in presets:
 
 	# Reset the contents of the symlink database, or delete it if using placeholders
 	if config.storage_method == 'database' and data_raw.len > 0:
-		let file = open(config.db_file)  # Truncate (clear) the file
+		file = open(config.db_file, fmWrite)  # Truncate (clear) the file
 		log info, &'Created database: {config.db_file.absolute_path}';
 	elif file_exists(config.db_file):
 		remove_file(config.db_file)
@@ -215,20 +215,27 @@ for p in presets:
 			if dest_path.starts_with(get_current_dir()):
 				let temp_path = dest_path
 				dest_path = relative_path(dest_path, config.library_path)
-				log(info, &'Converted absolute target: {temp_path} -> {dest_path}');;
+				log info, &'Converted absolute target: {temp_path} -> {dest_path}';;
 		else:
 			# Normalize relative dest_path to absolute if outside library
 			let temp_path = absolute_path(parent_dir(link_path) / dest_path)
 			if not temp_path.starts_with(get_current_dir()):
-				log(info, &'Converted relative target: {dest_path} -> {temp_path}')
+				log info, &'Converted relative target: {dest_path} -> {temp_path}'
 				dest_path = temp_path;;
 
+		# adds ./ if applicable
+		if not destPath.starts_with('./') and not destPath.starts_with('/'):
+			destPath = './' & destPath;
+
 		# Create symlink
-		if not (symlink_exists(link_path) and expand_symlink(link_path) == dest_path):
-			try:
-				create_symlink(dest_path, link_path);
-			except OSError as e:
-				log(err, &'Failed to create symlink: {link_path}  >  {dest_path} ({e.msg})');;
+		if symlink_exists(link_path):
+			if not (expand_symlink(link_path) == dest_path):
+				log warn, &'Overwriting existing symlink: {link_path}  >  {link_path.expand_symlink}';
+			remove_file(link_path);
+		try:
+			create_symlink(dest_path, link_path);
+		except OSError as e:
+			log(err, &'Failed to create symlink: {link_path}  >  {dest_path} ({e.msg})');
 
 		# Write symlink placeholder
 		if config.storage_method == 'placeholder':
@@ -236,7 +243,7 @@ for p in presets:
 
 		# Append to symlink database
 		if config.storage_method == 'database':
-			file.write_line(&'{link_path} >>> {dest_path}\n');
+			file.write_line(&'{link_path} >>> {dest_path}');
 
 		log info, &'{link_path} >>> {dest_path}';
 	file.close();
