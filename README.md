@@ -2,43 +2,43 @@
 
 > Utility to help sync and restore symlinks in Seafile.
 
-As of July 2018 (v.6.1.8), Seafile still cannot sync symlinks natively. It
-follows them, and syncs them as if they were normal files and directories.
+As of July ~~2018~~ 2025 ~~(v.6.1.8)~~, Seafile still cannot sync symlinks natively. It
+follows them, and syncs them as if they were normal files and directories or just ignores them entirely.
 In most cases, this is undesirable.
 
-These scripts are meant to address this shortcoming. They will find symlinks,
+~~These~~ This scripts ~~are~~ is meant to address this shortcoming. ~~They~~ It will find symlinks,
 add them to `seafile-ignore.txt`, store their data in syncable placeholder
 files or in a text database (configurable), and restore them therefrom.
 
-There are two versions: PowerShell and bash, for Windows and Linux/macOS
-respectively. The first is refactored and feature-complete, but the latter
-may need more work. PRs are welcome.
+~~There are two versions: PowerShell and bash, for Windows and Linux/macOS~~
+~~respectively. The first is refactored and feature-complete, but the latter~~
+~~may need more work. PRs are welcome.~~ This should work on Linux, has not been tested on Windows.
 
-Lastly, Seafile has a long-standing (5+ years) issue about symlinks:
+Lastly, Seafile has a long-standing (~~5~~ 11+ years) issue about symlinks:
 
 https://github.com/haiwen/seafile/issues/288
 
 Keep an eye on it for developments. It takes a lot more work to develop a
 backwards-compatible feature for a massive userbase than to whip up some
-shell scripts over the weekend. But if you're interested in seeing this
+~~shell~~nim script~~s~~ over the weekend. But if you're interested in seeing this
 solved properly, please head on over there, upvote the issue, and
 contribute to the conversation.
 
-In the meantime, I hope these scripts help your workflow.
+In the meantime, I hope ~~these~~ this script~~s~~ help your workflow.
 
 
 
 # Usage
 
-There are two scripts included with this repository: PowerShell and bash.
+There are two ~~scripts~~programs included ~~with this repository~~ in the release ~~: PowerShell and bash.~~
 
-[seafile-symlink.ps1](seafile-symlink.ps1) was developed on Windows 7 SP1
-with PowerShell 5.0.
+~~[seafile-symlink.ps1](seafile-symlink.ps1) was developed on Windows 7 SP1~~
+~~with PowerShell 5.0.~~
 
-[seafile-symlink.sh](seafile-symlink.sh) was developed on macOS 10.12.6
-with bash 3.2.57.
+~~[seafile-symlink.sh](seafile-symlink.sh) was developed on macOS 10.12.6~~
+~~with bash 3.2.57.~~
 
-Please do not attempt to run the `.ps1` on Linux, nor the `.sh` on Windows.
+Please do not attempt to run the ~~`.ps1`~~ `exe` on Linux, nor the ~~`.sh`~~ other on Windows.
 That sort of use is completely untested and runs the risk of unintended
 overwrites. Cross-platform path resolution is tricky.
 
@@ -46,32 +46,32 @@ The tool is designed to be installed either in a (sub-)subdirectory of
 a Seafile library, or somewhere else on your computer in case you'd like
 to use a single installation to control multiple libraries.
 
-You can install the tool via git or by downloading this repository:
+You can ~~install~~ download the tool ~~via git or by downloading this repository:~~ by going to the releases.
 
-```bash
-git clone https://github.com/IllyaMoskvin/seafile-symlink
-```
+~~```bash~~
+~~git clone https://github.com/IllyaMoskvin/seafile-symlink~~
+~~```~~
 
 
 
 ## Configuration
 
-Make a copy of `presets/default.ini`. For the purposes of this guide,
-we'll assume it's named `presets/custom.ini`.
+Make a copy of `presets/default.taml`. For the purposes of this guide,
+we'll assume it's named `presets/custom.taml`.
 
 Inside, you'll find the following settings:
 
-```ini
-[General]
-LibraryPath='..\'           ; Absolute or relative to seafile-symlink.ps1
-StorageMethod='placeholder' ; Either 'database' or 'placeholder'
-PlaceholderExt='seaflnk'    ; Only applies if using placeholders
+```yaml
+library_path: ..\             # Absolute, or relative to seafile-symlink (library folder to the binary)
+storage_method: placeholder   # Either 'database' or 'placeholder'
+placeholder_ext: seaflnk      # Only applies if using placeholders
+db_file: seafile-symlink.txt  # If using 'database', what the file should be named
 ```
 
-By default, `LibraryPath` assumes that the `seafile-symlink` directory is
+By default, `library_path` assumes that the `seafile-symlink` directory is
 a first-level subdirectory of a library.
 
-The `StorageMethod` indicates whether to use `placeholder` files or a
+The `storage_method` indicates whether to use `placeholder` files or a
 single `database` text file to track symlinks.
 
 Placeholders offer potentially better preservation of relative symlinks
@@ -79,45 +79,33 @@ when you reorganize directories. The database offers centralized storage
 for symlink data, similar to `seafile-ignore.txt`, whose conventions it
 mimics, but it is less resistant to reorganization.
 
-Personally, I use `database` for my projects, but the default is `placeholder`.
+Personally, ~~I~~ the original author uses `database` for ~~my~~ their projects, but the default is `placeholder`.
 
 You can switch between `placeholder` and `database` at any time. The next
 time you run the script after modifying this setting, it'll migrate your
 placeholder data into the database and remove them, or vice versa.
 
-The `PlaceholderExt` is provided as a matter of convenience.
+The `placeholder_ext` and `db_file` is provided as a matter of convenience.
 
 
-## PowerShell
+## Example
 
-Requires PowerShell 5.0 or higher.
-
-```powershell
-.\seafile-symlink.ps1 -Preset custom                 # loads presets\custom.ini
-.\seafile-symlink.ps1 -Preset custom.ini             # ditto
-.\seafile-symlink.ps1 -Preset E:\Foobar\custom.ini   # absolute path is ok
-```
-
-
-## Bash
-
-Installing bash 4.0 on macOS is inconvenient, so we're sticking to 3.0 features.
-
-```powershell
-./seafile-symlink.sh custom                 # loads presets/custom.ini
-./seafile-symlink.sh custom.ini             # ditto
-./seafile-symlink.sh ~/foobar/custom.ini    # absolute path is still ok
+```bash
+./seafile-symlink custom                   # loads presets/custom.ini
+./seafile-symlink custom.taml              # ditto
+./seafile-symlink ~/foobar/custom.taml     # absolute path is still ok
+./seafile-symlink custom\ 1 custom\ 2      # multiple at once
 ```
 
 
 ## Workflow
 
-When creating symlinks, you'll need to pause syncing.
+~~When creating symlinks, you'll need to pause syncing.~~
 
-1. Disable auto-sync for the Seafile library
-2. Create whatever symlinks you need
-3. Run `seafile-symlink`
-4. Re-enable auto-sync
+1. ~~Disable auto-sync for the Seafile library~~ Make sure to enable the Don't sync symbolic links option in seafile
+2. ~~Create whatever symlinks you need~~
+3. ~~Run `seafile-symlink`~~
+4. ~~Re-enable auto-sync~~
 
 Removing symlinks takes an extra step now. If you don't remove references to
 it, it will be re-created the next time you run `seafile-symlink`. Checklist:
@@ -134,9 +122,9 @@ When syncing symlinks across devices:
 The scripts should update `seafile-ignore.txt` before creating new symlinks,
 but you may want to disable syncing whenever running them just in case.
 
-The PowerShell version is pretty good about avoiding unnecessary file writes,
-but the bash version uses append liberally. This may trigger unnecessary but
-harmless syncs in Seafile.
+~~The PowerShell version is pretty good about avoiding unnecessary file writes,~~
+~~but the bash version uses append liberally. This may trigger unnecessary but~~
+~~harmless syncs in Seafile.~~
 
 Lastly, if Seafile follows your symlinks and syncs them:
 
@@ -167,7 +155,7 @@ This is intentional.
 * [What is the difference between a symbolic link and a hard link?](https://stackoverflow.com/questions/185899/what-is-the-difference-between-a-symbolic-link-and-a-hard-link)
 * [What is the difference between NTFS hard links and directory junctions?](https://superuser.com/questions/67870/what-is-the-difference-between-ntfs-hard-links-and-directory-junctions)
 
-This tool has only been tested on NTFS and FAT file systems.
+~~This tool has only been tested on NTFS and FAT file systems.~~ This tool has basically not been tested.
 
 This tool is meant primarily for syncing symlinks with relative targets
 within the same Seafile library. Support of symlinks with absolute paths
@@ -185,6 +173,11 @@ Symlinks that contain the `~` home path in their target are untested.
 
 Absolute paths might get sketchy when transferred cross-platform.
 
+
+
+# Compiling
+
+To compile this project yourself (first why?, second) go checkout/use https://github.com/EpicStuff/zxc
 
 
 # License
