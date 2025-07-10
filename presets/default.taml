@@ -4,3 +4,4 @@
 library_path: ..\ # Absolute or relative to seafile-symlink (library folder to the binary)
 storage_method: placeholder # Either 'database' or 'placeholder'
 placeholder_ext: seaflnk # Only applies if using placeholders
+db_file: seafile-symlink.txt # If using 'database', what the file should be named

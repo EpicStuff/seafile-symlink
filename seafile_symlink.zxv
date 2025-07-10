@@ -39,12 +39,14 @@
 #================================================================
 # Initialization
 #================================================================
-import std/strformat, std/os, std/strutils, yanyl
+import std/[strformat, os, strutils, re, symlinks, sequtils]
+import pkg/[yanyl]
 
 type config_template = object  #:
 	library_path: string
 	storage_method: string
-	placeholder_ext: string;
+	placeholder_ext: string
+	db_file: string;
 derive_yaml config_template
 
 # get the current directory
@@ -55,6 +57,38 @@ app_dir.set_current_dir()
 # Create presets folder (does nothing if it already exists)
 create_dir 'presets'
 
+# variables ("predecleration")
+var file: File
+var preset: string
+
+
+
+#================================================================
+# Function definitions
+#================================================================
+# Convert potentially Windows path to Unix
+proc get_localized_path(p: string): string =
+	var path = p
+	# Convert Windows drive to POSIX (C: -> /C)
+	path = path.replace(re'^([A-Za-z]):', r'/\1')
+	# Convert backslashes to forward slashes
+	path = path.replace('\\', '/')
+	# Ensure ambiguous paths are explicitly relative
+	if not (path.starts_with('/') or path.starts_with('.')):
+		path = './' & path;
+	return path;
+
+proc log(tag: string, msg: string) =
+	let color = case tag.to_lower_ascii()
+		of 'info': '\x1b[38;5;245m'
+		of 'warn': '\x1b[33m'
+		of 'err.': '\x1b[31m'
+		else: '\x1b[0m'
+
+	echo &'[{color}{tag}\x1b[0m] {msg}';
+let info = 'info'
+let warn = 'warn'
+let err = 'err.'
 
 
 #================================================================
@@ -67,12 +101,11 @@ if presets.len == 0:
 	quit 'Usage: ./seafile_symlink [prefixname]', 1;
 
 
-var preset: string
 # loop though each preset given
 for p in presets:
 	# if preset doesnt end with .taml, look relative to presets folder
 	if not p.ends_with '.taml':
-		preset = p.addFileExt('.taml').absolute_path(app_dir / 'presets');
+		preset = p.add_file_ext('.taml').absolute_path(app_dir / 'presets');
 	# else look relative to the current directory
 	else:
 		preset = p.absolute_path(cwd);
@@ -81,7 +114,7 @@ for p in presets:
 	if not file_exists(preset):
 		quit &'Config not found: {preset.absolute_path}', 1;
 	# load config for preset
-	var config = of_yaml_str(read_file(preset), config_template)
+	var config = of_yaml_str(read_file(preset), config_template)  # TODO: handle invalid taml files
 
 	# Ensure that LibraryPath exists
 	if not dir_exists(config.library_path):
@@ -99,8 +132,119 @@ for p in presets:
 
 
 
-#================================================================
-# Data gathering
-#================================================================
+	#================================================================
+	# Data gathering
+	#================================================================
 	# Enter the LibraryPath. We'll be resolving all paths from here onward.
 	config.library_path.set_current_dir()
+
+	# We'll append data in database format to here, then process it later.
+	var data_raw: seq[string] = @[]
+
+	# Gather data from actual symlinks
+	for path in walk_dir_rec('.', yieldFilter = {pc_link_to_file, pc_link_to_dir}):
+		# Read the destination the symlink points to
+		data_raw.add &'{path} >>> {path.expandSymlink.unixToNativePath}';
+
+	# Gather data from symlink placeholders
+	for placeholder_path in walk_dir_rec('.', yield_filter = {pcFile}):
+		if placeholder_path.ends_with(config.placeholder_ext):
+			let link_path = placeholder_path[0 ..< ^(config.placeholder_ext.len)]  # Strip the extension
+			let dest_path = read_file(placeholder_path).strip()  # Read and strip newline
+
+			data_raw.add &'{link_path} >>> {dest_path}';;
+
+	# Gather data from symlink database
+	if file_exists(config.db_file):
+		for line in lines(config.db_file):
+			let datum = line.strip()
+			if ' >>> ' in datum:
+				let parts = datum.split(' >>> ', 1)
+				if parts.len == 2:
+					let link_path = get_localized_path(parts[0])
+					let dest_path = get_localized_path(parts[1])
+					data_raw.add &'{link_path} >>> {dest_path}';
+				else:
+					log warn, '{config.db_file}: unable to split line into two parts';;
+			else:
+				log warn, '{config.db_file}: missing ` >>> ` delimiter';;;
+
+	# Ensure the array is unique
+	data_raw = deduplicate(data_raw)
+
+
+
+#================================================================
+# Writing files
+#================================================================
+	if data_raw.len == 0:
+		log info, 'No symlink data found. Performing cleanup.';
+	else:
+		log info, 'Symlink data found. Processing...';
+
+	# Reset the contents of the symlink database, or delete it if using placeholders
+	if config.storage_method == 'database' and data_raw.len > 0:
+		let file = open(config.db_file)  # Truncate (clear) the file
+		log info, &'Created database: {config.db_file.absolute_path}';
+	elif file_exists(config.db_file):
+		remove_file(config.db_file)
+		log info, &'Removed database: {config.db_file.absolute_path}';
+
+	# Remove all placeholder files. We'll recreate them below if needed.
+	for path in walk_dir_rec('.', yield_filter = {pcFile}):
+		if path.ends_with(config.placeholder_ext):
+			remove_file(path);;
+
+
+	for datum in data_raw:
+		# Skip blank or invalid lines
+		if not (' >>> ' in datum):
+			log err, &'Skipping invalid line (missing delimiter): {datum}'
+			continue;
+
+		# Split datum into link_path and dest_path
+		let parts = datum.split(' >>> ')
+		if parts.len != 2:
+			log err, &'Skipping malformed line (expected 2 parts): {datum}'
+			continue;
+		var link_path = parts[0]
+		var dest_path = parts[1]
+
+		# Normalize absolute dest_path to relative if inside library
+		if dest_path.starts_with('/'):
+			if dest_path.starts_with(get_current_dir()):
+				let temp_path = dest_path
+				dest_path = relative_path(dest_path, config.library_path)
+				log(info, &'Converted absolute target: {temp_path} -> {dest_path}');;
+		else:
+			# Normalize relative dest_path to absolute if outside library
+			let temp_path = absolute_path(parent_dir(link_path) / dest_path)
+			if not temp_path.starts_with(get_current_dir()):
+				log(info, &'Converted relative target: {dest_path} -> {temp_path}')
+				dest_path = temp_path;;
+
+		# Create symlink
+		if not (symlink_exists(link_path) and expand_symlink(link_path) == dest_path):
+			try:
+				create_symlink(dest_path, link_path);
+			except OSError as e:
+				log(err, &'Failed to create symlink: {link_path}  >  {dest_path} ({e.msg})');;
+
+		# Write symlink placeholder
+		if config.storage_method == 'placeholder':
+			write_file(link_path & config.placeholder_ext, dest_path);
+
+		# Append to symlink database
+		if config.storage_method == 'database':
+			file.write_line(&'{link_path} >>> {dest_path}\n');
+
+		log info, &'{link_path} >>> {dest_path}';
+	file.close();
+
+
+#================================================================
+# Cleanup
+#================================================================
+
+# Restore our initial working directory
+set_current_dir(cwd)
