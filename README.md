@@ -6,7 +6,7 @@ As of July ~~2018~~ 2025 ~~(v.6.1.8)~~, Seafile still cannot sync symlinks nativ
 follows them, and syncs them as if they were normal files and directories or just ignores them entirely.
 In most cases, this is undesirable.
 
-~~These~~ This scripts ~~are~~ is meant to address this shortcoming. ~~They~~ It will find symlinks,
+~~These scripts are~~ This program is meant to address this shortcoming. ~~They~~ It will find symlinks,
 add them to `seafile-ignore.txt`, store their data in syncable placeholder
 files or in a text database (configurable), and restore them therefrom.
 
@@ -24,7 +24,7 @@ backwards-compatible feature for a massive userbase than to whip up some
 solved properly, please head on over there, upvote the issue, and
 contribute to the conversation.
 
-In the meantime, I hope ~~these~~ this script~~s~~ help your workflow.
+In the meantime, I hope ~~these~~ this ~~scripts~~ program help your workflow.
 
 
 

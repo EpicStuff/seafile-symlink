@@ -44,6 +44,7 @@ import pkg/[yanyl]
 
 type config_template = object  #:
 	library_path: string
+	seafile_path: string
 	storage_method: string
 	placeholder_ext: string
 	db_file: string;
@@ -55,7 +56,7 @@ var cwd = get_current_dir()
 let app_dir = get_app_dir()
 app_dir.set_current_dir()
 # Create presets folder (does nothing if it already exists)
-create_dir 'presets'
+create_dir('presets')
 
 # variables ("predecleration")
 var file: File
@@ -67,17 +68,6 @@ var preset: string
 # Function definitions
 #================================================================
 # Convert potentially Windows path to Unix
-proc get_localized_path(p: string): string =
-	var path = p
-	# Convert Windows drive to POSIX (C: -> /C)
-	path = path.replace(re'^([A-Za-z]):', r'/\1')
-	# Convert backslashes to forward slashes
-	path = path.replace('\\', '/')
-	# Ensure ambiguous paths are explicitly relative
-	if not (path.starts_with('/') or path.starts_with('.')):
-		path = './' & path;
-	return path;
-
 proc log(tag: string, msg: string) =
 	let color = case tag.to_lower_ascii()
 		of 'info': '\x1b[38;5;245m'
@@ -90,6 +80,18 @@ let info = 'info'
 let warn = 'warn'
 let err = 'err.'
 
+proc get_localized_path(p: string): string =
+	var path = p.normalized_path()
+	# Convert Windows drive to POSIX (C: -> /C)
+	path = path.replace(re'^([A-Za-z]):', r'/\1')
+	# Convert backslashes to forward slashes
+	path = path.replace('\\', '/')
+	# Ensure ambiguous paths are explicitly relative
+	if not (path.starts_with('/') or path.starts_with('.')):
+		path = './' & path;
+	return path;
+
+
 
 #================================================================
 # Config loading and validation
@@ -98,27 +100,31 @@ let err = 'err.'
 let presets = command_line_params()
 # Ensure a preset name was passed
 if presets.len == 0:
-	quit 'Usage: ./seafile_symlink [prefixname]', 1;
+	quit 'Usage: ./seafile_symlink [preset_name]', 1;
 
 
 # loop though each preset given
 for p in presets:
-	# if preset doesnt end with .taml, look relative to presets folder
-	if not p.ends_with '.taml':
+	# if preset doesn't end with .taml, look relative to presets folder
+	if not p.ends_with('.taml'):
 		preset = p.add_file_ext('.taml').absolute_path(app_dir / 'presets');
 	# else look relative to the current directory
 	else:
 		preset = p.absolute_path(cwd);
 
 	# Ensure the specified config exists
-	if not file_exists(preset):
+	if not preset.file_exists():
 		quit &'Config not found: {preset.absolute_path}', 1;
 	# load config for preset
-	var config = of_yaml_str(read_file(preset), config_template)  # TODO: handle invalid taml files
+	var config = of_yaml_str(preset.read_file(), config_template)  # TODO: handle invalid taml files
 
 	# Ensure that LibraryPath exists
-	if not dir_exists(config.library_path):
-		quit &'Cannot resolve LibraryPath to a directory: {config.library_path}', 1;
+	if not config.library_path.dir_exists():
+		quit &'Cannot resolve library_path to a directory: {config.library_path}', 1;
+	# Ensure that seafile_path exists
+	config.seafile_path = config.seafile_path.absolute_path(config.library_path)
+	if not config.seafile_path.dir_exists():
+		quit &'Cannot resolve seafile_path to a directory: {config.library_path}', 1;
 	# Ensure the storage method is valid
 	if config.storage_method != 'placeholder' and config.storage_method != 'database':
 		quit &'Invalid storage_method: {config.storage_method}', 1;
@@ -127,8 +133,8 @@ for p in presets:
 		config.placeholder_ext = '.' & config.placeholder_ext;
 	
 	# Output some config feedback to user
-	echo &'Processing library_path: {config.library_path.absolute_path}'
-	echo &'Using storage_method: {config.storage_method}'
+	echo(&'Processing library_path: {config.library_path.absolute_path()}')
+	echo(&'Using storage_method: {config.storage_method}')
 
 
 
@@ -144,33 +150,33 @@ for p in presets:
 	# Gather data from actual symlinks
 	for path in walk_dir_rec('.', yieldFilter = {pc_link_to_file, pc_link_to_dir}):
 		# Read the destination the symlink points to
-		data_raw.add &'{path} >>> {path.expandSymlink.unixToNativePath}';
+		data_raw.add(&'{path} >>> {path.expandSymlink.unixToNativePath}');
 
 	# Gather data from symlink placeholders
 	for placeholder_path in walk_dir_rec('.', yield_filter = {pcFile}):
 		if placeholder_path.ends_with(config.placeholder_ext):
-			let link_path = placeholder_path[0 ..< ^(config.placeholder_ext.len)]  # Strip the extension
-			let dest_path = read_file(placeholder_path).strip()  # Read and strip newline
+			let link_path = placeholder_path.change_file_ext('')  # Strip the extension
+			let dest_path = placeholder_path.read_file().strip()  # Read and strip newline
 
-			data_raw.add &'{link_path} >>> {dest_path}';;
+			data_raw.add(&'{link_path} >>> {dest_path}');;
 
 	# Gather data from symlink database
-	if file_exists(config.db_file):
-		for line in lines(config.db_file):
+	if config.db_file.file_exists():
+		for line in config.db_file.lines():
 			let datum = line.strip()
 			if ' >>> ' in datum:
 				let parts = datum.split(' >>> ', 1)
 				if parts.len == 2:
-					let link_path = get_localized_path(parts[0])
-					let dest_path = get_localized_path(parts[1])
-					data_raw.add &'{link_path} >>> {dest_path}';
+					let link_path = parts[0].get_localized_path()
+					let dest_path = parts[1].get_localized_path()
+					data_raw.add(&'{link_path} >>> {dest_path}');
 				else:
-					log warn, '{config.db_file}: unable to split line into two parts';;
+					log(warn, '{config.db_file}: unable to split line into two parts');;
 			else:
-				log warn, '{config.db_file}: missing ` >>> ` delimiter';;;
+				log(warn, '{config.db_file}: missing ` >>> ` delimiter');;;
 
 	# Ensure the array is unique
-	data_raw = deduplicate(data_raw)
+	data_raw = data_raw.deduplicate()
 
 
 
@@ -178,60 +184,61 @@ for p in presets:
 # Writing files
 #================================================================
 	if data_raw.len == 0:
-		log info, 'No symlink data found. Performing cleanup.';
+		echo('No symlink data found. Performing cleanup.');
 	else:
-		log info, 'Symlink data found. Processing...';
+		echo('Symlink data found. Processing...');
 
 	# Reset the contents of the symlink database, or delete it if using placeholders
 	if config.storage_method == 'database' and data_raw.len > 0:
-		file = open(config.db_file, fmWrite)  # Truncate (clear) the file
-		log info, &'Created database: {config.db_file.absolute_path}';
-	elif file_exists(config.db_file):
-		remove_file(config.db_file)
-		log info, &'Removed database: {config.db_file.absolute_path}';
+		file = config.db_file.open(fmWrite)  # Truncate (clear) the file
+		log(info, &'Created database: {config.db_file.absolute_path}');
+	elif config.db_file.file_exists():
+		config.db_file.remove_file()
+		log(info, &'Removed database: {config.db_file.absolute_path}');
 
 	# Remove all placeholder files. We'll recreate them below if needed.
-	for path in walk_dir_rec('.', yield_filter = {pcFile}):
+	for path in '.'.walk_dir_rec(yield_filter = {pcFile}):
 		if path.ends_with(config.placeholder_ext):
-			remove_file(path);;
+			path.remove_file();;
 
 
 	for datum in data_raw:
 		# Skip blank or invalid lines
 		if not (' >>> ' in datum):
-			log err, &'Skipping invalid line (missing delimiter): {datum}'
+			log(err, &'Skipping invalid line (missing delimiter): {datum}')
 			continue;
 
 		# Split datum into link_path and dest_path
 		let parts = datum.split(' >>> ')
 		if parts.len != 2:
-			log err, &'Skipping malformed line (expected 2 parts): {datum}'
+			log(err, &'Skipping malformed line (expected 2 parts): {datum}')
 			continue;
 		var link_path = parts[0]
 		var dest_path = parts[1]
 
-		# Normalize absolute dest_path to relative if inside library
-		if dest_path.starts_with('/'):
-			if dest_path.starts_with(get_current_dir()):
-				let temp_path = dest_path
-				dest_path = relative_path(dest_path, config.library_path)
-				log info, &'Converted absolute target: {temp_path} -> {dest_path}';;
-		else:
-			# Normalize relative dest_path to absolute if outside library
-			let temp_path = absolute_path(parent_dir(link_path) / dest_path)
-			if not temp_path.starts_with(get_current_dir()):
-				log info, &'Converted relative target: {dest_path} -> {temp_path}'
-				dest_path = temp_path;;
+		if config.seafile_path != '':
+			let original_path = dest_path
+		
+			# Convert symlink destination to absolute path
+			if not dest_path.is_absolute():
+				dest_path = absolute_path(link_path.parent_dir() / dest_path);
+			
+			# Convert to relative path if target is inside seafile folder
+			if dest_path.is_relative_to(config.seafile_path):
+				dest_path = relative_path(dest_path, link_path.parent_dir());
+
+			if original_path != dest_path:
+				log info, &'Converted target: {original_path} -> {dest_path}';;
 
 		# adds ./ if applicable
-		if not destPath.starts_with('./') and not destPath.starts_with('/'):
+		if not (destPath.starts_with('/') or destPath.starts_with('./') or destPath.starts_with('../')):
 			destPath = './' & destPath;
 
 		# Create symlink
-		if symlink_exists(link_path):
-			if not (expand_symlink(link_path) == dest_path):
-				log warn, &'Overwriting existing symlink: {link_path}  >  {link_path.expand_symlink}';
-			remove_file(link_path);
+		if link_path.symlink_exists():
+			if not (link_path.expand_symlink() == dest_path):
+				log warn, &'Overwriting existing symlink: {link_path}, {link_path.expand_symlink()}  >  {dest_path}';
+			link_path.remove_file();
 		try:
 			create_symlink(dest_path, link_path);
 		except OSError as e:
@@ -245,7 +252,7 @@ for p in presets:
 		if config.storage_method == 'database':
 			file.write_line(&'{link_path} >>> {dest_path}');
 
-		log info, &'{link_path} >>> {dest_path}';
+		log(info, &'{link_path} >>> {dest_path}');
 	file.close();
 
 

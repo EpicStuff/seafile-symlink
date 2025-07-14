@@ -1,7 +1,8 @@
 # Avoid modifying this file directly as it may be overwritten by source control
 # Create copies of it in this dir, sans comments, e.g. named after your library
 # See README.md for info on how to get the scripts to read your custom configs
-library_path: ..\             # Absolute, or relative to seafile-symlink (library folder to the binary)
+library_path: ../             # Absolute, or relative to seafile-symlink (library folder to the binary)
+seafile_path: ../             # Path to Seafile folder, used to judge if symlink should be converted to relative path, leave blank to disable conversion entirely, relative to library path 
 storage_method: placeholder   # Either 'database' or 'placeholder'
 placeholder_ext: seaflnk      # Only applies if using placeholders
 db_file: seafile-symlink.txt  # If using 'database', what the file should be named
